@@ -30,12 +30,13 @@ class MyBot < Ebooks::Bot
 
   def on_startup
     # See https://github.com/jmettraux/rufus-scheduler
-    scheduler.every '151m' do
+    scheduler.every '10s' do |job|
       if rand(10) < 8
         tweet_major_city
       else
         tweet_minor_city
       end
+      job.next_time = Time.now + rand(1..15) * 60 * 61
     end
   end
 
