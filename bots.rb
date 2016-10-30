@@ -4,8 +4,6 @@ require 'timezone'
 require 'httparty'
 require 'dotenv'
 require_relative 'us_states'
-require 'pry-byebug'
-
 
 class MyBot < Ebooks::Bot
 
@@ -181,19 +179,14 @@ class MyBot < Ebooks::Bot
   def parse_country_codes(area)
     case area
     when "US", "USA", "United States of America"
-      puts "you meant United States"
       return "United States"
     when "UAE"
       return "United Arab Emirates"
     when "UK"
       return "United Kingdom"
     else
-      if US_STATES[area.to_sym]
-        return US_STATES[area.to_sym]
-      else
-        puts "you know what you're talking about"
-        return area
-      end
+      return US_STATES[area.to_sym] if US_STATES[area.to_sym]
+      return area
     end
   end
 
