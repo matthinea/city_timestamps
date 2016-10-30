@@ -36,7 +36,8 @@ class MyBot < Ebooks::Bot
       else
         tweet_minor_city
       end
-      job.next_time = Time.now + rand(1..15) * 60 * 61
+      # tweet every ~1-3.5 hours
+      job.next_time = Time.now + rand(60..200) * 61
     end
   end
 
