@@ -1,15 +1,19 @@
 require 'twitter_ebooks'
 require 'json'
 require 'timezone'
-require 'active_support/all'
 require 'httparty'
+require 'dotenv'
+require_relative 'us_states'
+require 'pry-byebug'
 
 
 class MyBot < Ebooks::Bot
 
   def configure
-    self.consumer_key = ENV['consumer_key']
-    self.consumer_secret = ENV['consumer_secret']
+    Dotenv.load   
+
+    self.consumer_key = ENV['CONSUMER_KEY']
+    self.consumer_secret = ENV['CONSUMER_SECRET']
 
     # Users to block instead of interacting with
     # self.blacklist = ['tnietzschequote']
@@ -21,7 +25,7 @@ class MyBot < Ebooks::Bot
     @@all_cities = JSON.parse(File.read("world-cities.json"))
 
     Timezone::Lookup.config(:google) do |c|
-      c.api_key = ENV['google_maps_api_key']
+      c.api_key = ENV['GOOGLE_MAPS_API_KEY']
     end
 
   end
@@ -39,7 +43,6 @@ class MyBot < Ebooks::Bot
 
   def on_message(dm)
     reply_with_timestamp(dm)
-    # reply_using_cities(dm) || reply_using_world_cities(dm)
   end
 
   def on_follow(user)
@@ -48,7 +51,6 @@ class MyBot < Ebooks::Bot
 
   def on_mention(tweet)
     reply_with_timestamp(tweet)
-    # reply_using_cities(tweet) || reply_using_world_cities(tweet)
   end
 
   def on_timeline(tweet)
@@ -94,13 +96,43 @@ class MyBot < Ebooks::Bot
   end
 
   def reply_with_timestamp(message)
-    city_name = get_city_name(message)
-    coords = get_coords_from_primary_file(city_name)
-    if coords
+    if message.text.match(",")
+      reply_using_region(message)
+    else
+      city_name = get_city_name(message)
+      coords = get_coords_from_primary_file(city_name)
+      if coords
+        local_time = get_pretty_local_time(coords[0], coords[1])
+        reply(message, reply_text(city_name, local_time))
+      else
+        reply_using_secondary_file(city_name, message)
+      end
+    end
+  end
+
+  def reply_using_region(message)
+    data = message.text.split(",").map{|m|m.chomp.strip}
+    city = data[0]
+    area = parse_country_codes(data[1])
+    @@all_cities.each do |value|
+      if value['country'].casecmp(area) == 0 || value['subcountry'].casecmp(area) == 0
+        if value['name'].casecmp(city) == 0
+          coords = get_coordinates(value['geonameid'])
+          local_time = get_pretty_local_time(coords[0], coords[1])
+          city_name = "#{value['name']}, #{value['subcountry']}"
+          reply(message, reply_text(city_name, local_time))
+          return 
+        end 
+      end
+    end
+  end
+
+  def reply_using_secondary_file(city_name, message)
+    geoname_id = get_geoname_id(city_name)    
+    if geoname_id
+      coords = get_coordinates(geoname_id)
       local_time = get_pretty_local_time(coords[0], coords[1])
       reply(message, reply_text(city_name, local_time))
-    else
-      reply_using_secondary_file(city_name, message)
     end
   end
 
@@ -112,22 +144,13 @@ class MyBot < Ebooks::Bot
 
   def get_coords_from_primary_file(city_name)
     @@cities.each do |key, value|
-      if value['city'] == city_name
+      if value['city'].casecmp(city_name) == 0
         lat = value['lat']
         lon = value['lon']
         return [lat, lon]
       end
     end
     false
-  end
-
-  def reply_using_secondary_file(city_name, message)
-    geoname_id = get_geoname_id(city_name)    
-    if geoname_id
-      coords = get_coordinates(geoname_id)
-      local_time = get_pretty_local_time(coords[0], coords[1])
-      reply(message, reply_text(city_name, local_time))
-    end
   end
 
   def get_coordinates(geoname_id)
@@ -141,13 +164,13 @@ class MyBot < Ebooks::Bot
     [lat, long]
   end
 
-  def get_city_name(dm_or_mention)
-    dm_or_mention.text.gsub("@city_timestamps", "").chomp.strip.titleize
+  def get_city_name(message)
+    message.text.gsub("@city_timestamps", "").chomp.strip
   end
 
   def get_geoname_id(city_name)
     @@all_cities.each do |city|
-      if city['name'] == city_name 
+      if city['name'].casecmp(city_name) == 0
         puts city
         return city['geonameid']
       end
@@ -155,10 +178,29 @@ class MyBot < Ebooks::Bot
     false
   end
 
+  def parse_country_codes(area)
+    case area
+    when "US", "USA", "United States of America"
+      puts "you meant United States"
+      return "United States"
+    when "UAE"
+      return "United Arab Emirates"
+    when "UK"
+      return "United Kingdom"
+    else
+      if US_STATES[area.to_sym]
+        return US_STATES[area.to_sym]
+      else
+        puts "you know what you're talking about"
+        return area
+      end
+    end
+  end
+
 end
 
 
 MyBot.new("city_timestamps") do |bot|
-  bot.access_token = ENV['access_token']
-  bot.access_token_secret = ENV['access_token_secret']
+  bot.access_token = ENV['ACCESS_TOKEN']
+  bot.access_token_secret = ENV['ACCESS_TOKEN_SECRET']
 end
