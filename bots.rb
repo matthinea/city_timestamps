@@ -80,7 +80,7 @@ class MyBot < Ebooks::Bot
 
   def tweet_minor_city
     city = @@all_cities.sample
-    city_name = city['name']
+    city_name = "#{city['name']}, #{city['subcountry']}"
     geoname_id = city['geonameid']   
     coords = get_coordinates(geoname_id)
     local_time = get_pretty_local_time(coords[0], coords[1])
